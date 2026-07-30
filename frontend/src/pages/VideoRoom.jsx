@@ -65,6 +65,7 @@ function VideoRoom() {
             SHOW_JITSI_WATERMARK: false,
             SHOW_WATERMARK_FOR_GUESTS: false,
             SHOW_BRAND_WATERMARK: false,
+            SHOW_POWERED_BY: false,
             DEFAULT_BACKGROUND: '#1a1a1a',
             TOOLBAR_ALWAYS_VISIBLE: true,
             DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
