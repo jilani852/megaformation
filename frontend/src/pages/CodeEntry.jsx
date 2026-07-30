@@ -60,7 +60,7 @@ function CodeEntry() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-primary-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <Link to="/" className="flex items-center justify-center mb-8">
           <img src="/logo.png" alt="MegaFormation" className="h-16 w-auto object-contain" />
