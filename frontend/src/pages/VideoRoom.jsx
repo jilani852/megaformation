@@ -52,7 +52,7 @@ function VideoRoom() {
           configOverwrite: {
             startWithAudioMuted: false,
             startWithVideoMuted: false,
-            prejoinPageEnabled: true,
+            prejoinPageEnabled: false,
             disableDeepLinking: true,
             defaultLanguage: 'fr',
             toolbarButtons: [
@@ -62,10 +62,10 @@ function VideoRoom() {
             ],
           },
           interfaceConfigOverwrite: {
+            filmStripOnly: false,
             SHOW_JITSI_WATERMARK: false,
             SHOW_WATERMARK_FOR_GUESTS: false,
             SHOW_BRAND_WATERMARK: false,
-            SHOW_POWERED_BY: false,
             DEFAULT_BACKGROUND: '#1a1a1a',
             TOOLBAR_ALWAYS_VISIBLE: true,
             DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
