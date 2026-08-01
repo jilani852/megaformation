@@ -185,21 +185,23 @@ function VideoRoom() {
 
           tracks.push(screenStream);
 
-          let micStream = null;
-          let finalTracks = [...screenStream.getTracks()];
+          const screenHasAudio = screenStream.getAudioTracks().length > 0;
+          const finalTracks = [...screenStream.getTracks()];
 
-          try {
-            micStream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-              },
-            });
-            tracks.push(micStream);
-            finalTracks = [...finalTracks, ...micStream.getTracks()];
-          } catch (micErr) {
-            console.log('Microphone not available, recording without mic:', micErr);
+          if (!screenHasAudio) {
+            try {
+              const micStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+                },
+              });
+              tracks.push(micStream);
+              finalTracks.push(...micStream.getTracks());
+            } catch (micErr) {
+              console.log('Microphone not available, recording without mic:', micErr);
+            }
           }
 
           recordingStream = new MediaStream(finalTracks);
