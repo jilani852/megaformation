@@ -63,6 +63,9 @@ function VideoRoom() {
             prejoinPageEnabled: false,
             disableDeepLinking: true,
             defaultLanguage: 'fr',
+            enableNoiseSuppression: true,
+            enableEchoCancellation: true,
+            micDeviceId: null,
             toolbarButtons: [
               'microphone', 'camera', 'desktop', 'chat',
               'raisehand', 'participants', 'tileview',
@@ -186,7 +189,13 @@ function VideoRoom() {
           let finalTracks = [...screenStream.getTracks()];
 
           try {
-            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            micStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
             tracks.push(micStream);
             finalTracks = [...finalTracks, ...micStream.getTracks()];
           } catch (micErr) {
@@ -213,7 +222,11 @@ function VideoRoom() {
       if (!recordingStream) {
         const userStream = await navigator.mediaDevices.getUserMedia({
           video: true,
-          audio: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
         });
         tracks.push(userStream);
         recordingStream = userStream;
