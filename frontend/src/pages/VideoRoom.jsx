@@ -157,36 +157,67 @@ function VideoRoom() {
   const startRecording = async () => {
     setRecordingError('');
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setRecordingError('L\'enregistrement n\'est pas supporté par ce navigateur.');
         return;
       }
 
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true,
-      });
+      const supportsScreenCapture = !!navigator.mediaDevices.getDisplayMedia;
+      const tracks = [];
+      let recordingStream;
 
-      const tracks = [screenStream];
-      const videoTracks = screenStream.getVideoTracks();
-      if (videoTracks.length === 0) {
-        setRecordingError('Impossible de capturer la vidéo.');
-        screenStream.getTracks().forEach((t) => t.stop());
-        return;
+      if (supportsScreenCapture) {
+        try {
+          const screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: true,
+          });
+
+          const videoTracks = screenStream.getVideoTracks();
+          if (videoTracks.length === 0) {
+            setRecordingError('Impossible de capturer la vidéo.');
+            screenStream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+
+          tracks.push(screenStream);
+
+          let micStream = null;
+          let finalTracks = [...screenStream.getTracks()];
+
+          try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            tracks.push(micStream);
+            finalTracks = [...finalTracks, ...micStream.getTracks()];
+          } catch (micErr) {
+            console.log('Microphone not available, recording without mic:', micErr);
+          }
+
+          recordingStream = new MediaStream(finalTracks);
+
+          screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+              stopRecording();
+            }
+          });
+        } catch (screenErr) {
+          if (screenErr.name === 'NotAllowedError') {
+            setRecordingError('Vous avez annulé le partage d\'écran. L\'enregistrement a été annulé.');
+            return;
+          }
+          console.log('Screen capture failed, falling back to camera:', screenErr);
+          recordingStream = null;
+        }
       }
 
-      let micStream = null;
-      let finalTracks = [...screenStream.getTracks()];
-
-      try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        tracks.push(micStream);
-        finalTracks = [...finalTracks, ...micStream.getTracks()];
-      } catch (micErr) {
-        console.log('Microphone not available, recording without mic:', micErr);
+      if (!recordingStream) {
+        const userStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        tracks.push(userStream);
+        recordingStream = userStream;
       }
-
-      const recordingStream = new MediaStream(finalTracks);
 
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
@@ -217,12 +248,6 @@ function VideoRoom() {
         cleanupRecordingStreams();
       };
 
-      screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-          stopRecording();
-        }
-      });
-
       streamsRef.current = tracks;
       recorder.start();
       setIsRecording(true);
@@ -233,7 +258,7 @@ function VideoRoom() {
     } catch (err) {
       console.error('Recording error:', err);
       if (err.name === 'NotAllowedError') {
-        setRecordingError('Vous avez annulé le partage d\'écran. L\'enregistrement a été annulé.');
+        setRecordingError('Vous devez autoriser la caméra et le microphone pour enregistrer.');
       } else {
         setRecordingError('Erreur lors du démarrage de l\'enregistrement.');
       }
