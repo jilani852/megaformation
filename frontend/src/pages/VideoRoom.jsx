@@ -12,11 +12,14 @@ function VideoRoom() {
   const streamsRef = useRef([]);
   const audioContextRef = useRef(null);
   const timerRef = useRef(null);
+  const hadAudioRef = useRef(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingError, setRecordingError] = useState('');
+  const [showRecordingHint, setShowRecordingHint] = useState(false);
+  const [recordingHadAudio, setRecordingHadAudio] = useState(true);
 
   const userName = location.state?.userName || 'Invité';
   const sessionName = location.state?.sessionName || code;
@@ -159,6 +162,9 @@ function VideoRoom() {
 
   const startRecording = async () => {
     setRecordingError('');
+    setShowRecordingHint(true);
+    setRecordingHadAudio(true);
+    hadAudioRef.current = true;
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setRecordingError('L\'enregistrement n\'est pas supporté par ce navigateur.');
@@ -168,6 +174,7 @@ function VideoRoom() {
       const supportsScreenCapture = !!navigator.mediaDevices.getDisplayMedia;
       const tracks = [];
       let recordingStream;
+      let hasAudio = false;
 
       if (supportsScreenCapture) {
         try {
@@ -188,7 +195,9 @@ function VideoRoom() {
           const screenHasAudio = screenStream.getAudioTracks().length > 0;
           const finalTracks = [...screenStream.getTracks()];
 
-          if (!screenHasAudio) {
+          if (screenHasAudio) {
+            hasAudio = true;
+          } else {
             try {
               const micStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
@@ -199,12 +208,15 @@ function VideoRoom() {
               });
               tracks.push(micStream);
               finalTracks.push(...micStream.getTracks());
+              hasAudio = true;
             } catch (micErr) {
               console.log('Microphone not available, recording without mic:', micErr);
             }
           }
 
           recordingStream = new MediaStream(finalTracks);
+          setRecordingHadAudio(hasAudio);
+          hadAudioRef.current = hasAudio;
 
           screenStream.getVideoTracks()[0].addEventListener('ended', () => {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -232,6 +244,8 @@ function VideoRoom() {
         });
         tracks.push(userStream);
         recordingStream = userStream;
+        setRecordingHadAudio(true);
+        hadAudioRef.current = true;
       }
 
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
@@ -261,6 +275,11 @@ function VideoRoom() {
         a.remove();
         URL.revokeObjectURL(url);
         cleanupRecordingStreams();
+        if (!hadAudioRef.current) {
+          setRecordingError(
+            'Vidéo téléchargée mais AUCUN son capturé. Pour enregistrer le son, lors du partage d\'écran, sélectionnez l\'ONGLET de la réunion et cochez "Partager le son de l\'onglet" (ou activez votre micro).'
+          );
+        }
       };
 
       streamsRef.current = tracks;
@@ -364,6 +383,14 @@ function VideoRoom() {
           </button>
         </div>
       </header>
+
+      {showRecordingHint && isRecording && (
+        <div className="bg-yellow-900/30 border-b border-yellow-700/30 px-4 py-2 text-yellow-300 text-sm text-center">
+          <strong>Astuce audio:</strong> Pour enregistrer le son des autres participants,
+          choisissez l'<strong>onglet de la réunion</strong> dans le partage d'écran
+          et cochez <strong>"Partager le son de l'onglet"</strong>.
+        </div>
+      )}
 
       {recordingError && (
         <div className="bg-red-900/30 border-b border-red-700/30 px-4 py-2 text-red-300 text-sm text-center">
