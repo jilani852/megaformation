@@ -7,8 +7,16 @@ function VideoRoom() {
   const navigate = useNavigate();
   const jitsiContainerRef = useRef(null);
   const jitsiApiRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const streamsRef = useRef([]);
+  const audioContextRef = useRef(null);
+  const timerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [recordingError, setRecordingError] = useState('');
 
   const userName = location.state?.userName || 'Invité';
   const sessionName = location.state?.sessionName || code;
@@ -97,6 +105,17 @@ function VideoRoom() {
     initJitsi();
 
     return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      streamsRef.current.forEach((stream) => {
+        stream.getTracks().forEach((t) => t.stop());
+      });
+      streamsRef.current = [];
       if (jitsiApiRef.current) {
         jitsiApiRef.current.dispose();
         jitsiApiRef.current = null;
@@ -105,11 +124,133 @@ function VideoRoom() {
   }, [code, userName, navigate]);
 
   const handleLeave = () => {
+    if (isRecording) stopRecording();
     if (jitsiApiRef.current) {
       jitsiApiRef.current.dispose();
       jitsiApiRef.current = null;
     }
     navigate('/');
+  };
+
+  const formatTime = (seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const handleStopRecording = () => {
+    stopRecording();
+  };
+
+  const startRecording = async () => {
+    setRecordingError('');
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        setRecordingError('L\'enregistrement n\'est pas supporté par ce navigateur.');
+        return;
+      }
+
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+
+      const tracks = [screenStream];
+      const videoTracks = screenStream.getVideoTracks();
+      if (videoTracks.length === 0) {
+        setRecordingError('Impossible de capturer la vidéo.');
+        screenStream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      let micStream = null;
+      let finalTracks = [...screenStream.getTracks()];
+
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        tracks.push(micStream);
+        finalTracks = [...finalTracks, ...micStream.getTracks()];
+      } catch (micErr) {
+        console.log('Microphone not available, recording without mic:', micErr);
+      }
+
+      const recordingStream = new MediaStream(finalTracks);
+
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+        ? 'video/webm;codecs=vp8'
+        : 'video/webm';
+
+      const recorder = new MediaRecorder(recordingStream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `megaformation-recording-${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        cleanupRecordingStreams();
+      };
+
+      screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          stopRecording();
+        }
+      });
+
+      streamsRef.current = tracks;
+      recorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Recording error:', err);
+      if (err.name === 'NotAllowedError') {
+        setRecordingError('Vous avez annulé le partage d\'écran. L\'enregistrement a été annulé.');
+      } else {
+        setRecordingError('Erreur lors du démarrage de l\'enregistrement.');
+      }
+      setIsRecording(false);
+    }
+  };
+
+  const cleanupRecordingStreams = () => {
+    streamsRef.current.forEach((stream) => {
+      stream.getTracks().forEach((t) => t.stop());
+    });
+    streamsRef.current = [];
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    mediaRecorderRef.current = null;
   };
 
   return (
@@ -137,6 +278,41 @@ function VideoRoom() {
             </div>
             <span className="text-white text-sm hidden sm:inline">{userName}</span>
           </div>
+
+          {isRecording && (
+            <span className="flex items-center gap-2 bg-red-600/20 border border-red-500/30 text-red-400 px-3 py-1.5 rounded-lg text-sm font-semibold">
+              <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+              REC {formatTime(recordingTime)}
+            </span>
+          )}
+
+          <button
+            onClick={isRecording ? handleStopRecording : startRecording}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+              isRecording
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-dark-600 hover:bg-dark-500 text-white'
+            }`}
+            title={isRecording ? 'Arrêter l\'enregistrement et télécharger' : 'Enregistrer la session'}
+          >
+            {isRecording ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                </svg>
+                <span className="hidden sm:inline">Arrêter</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span className="hidden sm:inline">Enregistrer</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={handleLeave}
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
@@ -148,6 +324,12 @@ function VideoRoom() {
           </button>
         </div>
       </header>
+
+      {recordingError && (
+        <div className="bg-red-900/30 border-b border-red-700/30 px-4 py-2 text-red-300 text-sm text-center">
+          {recordingError}
+        </div>
+      )}
 
       <main className="flex-1 relative">
         {loading && (
