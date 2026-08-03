@@ -71,4 +71,57 @@ router.post('/session/join', async (req, res) => {
   }
 });
 
+router.post('/teacher/verify', async (req, res) => {
+  try {
+    const { name, code } = req.body;
+    if (!name || !code) {
+      return res.status(400).json({ error: 'Name and code are required' });
+    }
+    const session = await db.getSessionByCode(code.toUpperCase());
+    if (!session) {
+      return res.status(404).json({ error: 'Code de session invalide ou inactif' });
+    }
+    const isTeacher = await db.verifyTeacher(name.trim());
+    if (!isTeacher) {
+      return res.status(403).json({ error: 'Ce nom n\'est pas autorisé en tant qu\'enseignant' });
+    }
+    await db.logJoin(session.id, name.trim());
+    res.json({ valid: true, isTeacher: true, session: { id: session.id, name: session.name } });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/teachers', authMiddleware, async (req, res) => {
+  try {
+    const teachers = await db.getTeachers();
+    res.json(teachers);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch teachers' });
+  }
+});
+
+router.post('/teachers', authMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Teacher name is required' });
+    }
+    const teacher = await db.addTeacher(name.trim());
+    res.status(201).json(teacher);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add teacher' });
+  }
+});
+
+router.delete('/teachers/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.deleteTeacher(parseInt(id));
+    res.json({ message: 'Teacher deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete teacher' });
+  }
+});
+
 module.exports = router;

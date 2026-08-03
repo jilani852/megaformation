@@ -14,6 +14,7 @@ if (supabaseUrl && supabaseKey && supabaseUrl !== 'your_supabase_url_here') {
 
 const sessions = [];
 const sessionLogs = [];
+const teachers = [];
 
 const db = {
   supabase,
@@ -95,6 +96,66 @@ const db = {
       user_name: userName,
       joined_at: new Date().toISOString()
     });
+  },
+
+  async addTeacher(name) {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('teachers')
+        .insert([{ name }])
+        .select();
+      if (error) throw error;
+      return data[0];
+    }
+    const teacher = {
+      id: teachers.length + 1,
+      name,
+      created_at: new Date().toISOString()
+    };
+    teachers.push(teacher);
+    return teacher;
+  },
+
+  async getTeachers() {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('teachers')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    }
+    return [...teachers].reverse();
+  },
+
+  async deleteTeacher(id) {
+    if (supabase) {
+      const { error } = await supabase
+        .from('teachers')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return true;
+    }
+    const index = teachers.findIndex(t => t.id === id);
+    if (index !== -1) {
+      teachers.splice(index, 1);
+      return true;
+    }
+    return false;
+  },
+
+  async verifyTeacher(name) {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('teachers')
+        .select('*')
+        .ilike('name', name)
+        .limit(1);
+      if (error) return false;
+      return data.length > 0;
+    }
+    return teachers.some(t => t.name.toLowerCase() === name.toLowerCase());
   }
 };
 

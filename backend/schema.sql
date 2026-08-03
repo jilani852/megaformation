@@ -16,6 +16,12 @@ CREATE TABLE session_logs (
   joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE teachers (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) UNIQUE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE INDEX idx_sessions_code ON sessions(code);
 CREATE INDEX idx_sessions_active ON sessions(is_active);
 CREATE INDEX idx_session_logs_session ON session_logs(session_id);

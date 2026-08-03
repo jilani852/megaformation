@@ -5,8 +5,11 @@ import { api } from '../api';
 function AdminDashboard({ token, onLogout }) {
   const [sessions, setSessions] = useState([]);
   const [newSessionName, setNewSessionName] = useState('');
+  const [teachers, setTeachers] = useState([]);
+  const [newTeacherName, setNewTeacherName] = useState('');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [addingTeacher, setAddingTeacher] = useState(false);
   const [error, setError] = useState('');
   const [copiedCode, setCopiedCode] = useState('');
   const navigate = useNavigate();
@@ -30,8 +33,26 @@ function AdminDashboard({ token, onLogout }) {
     }
   };
 
+  const fetchTeachers = async () => {
+    try {
+      const response = await api.get('/api/teachers', token);
+
+      if (response.status === 401) {
+        onLogout();
+        navigate('/admin/login');
+        return;
+      }
+
+      const data = await response.json();
+      setTeachers(data);
+    } catch (err) {
+      setError('Erreur lors du chargement des enseignants');
+    }
+  };
+
   useEffect(() => {
     fetchSessions();
+    fetchTeachers();
   }, [token]);
 
   const handleCreateSession = async (e) => {
@@ -67,6 +88,43 @@ function AdminDashboard({ token, onLogout }) {
       fetchSessions();
     } catch (err) {
       setError('Erreur lors de la suppression');
+    }
+  };
+
+  const handleAddTeacher = async (e) => {
+    e.preventDefault();
+    setError('');
+    setAddingTeacher(true);
+
+    try {
+      const response = await api.post('/api/teachers', { name: newTeacherName.trim() }, token);
+
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'Erreur lors de l\'ajout de l\'enseignant');
+        setAddingTeacher(false);
+        return;
+      }
+
+      setNewTeacherName('');
+      fetchTeachers();
+      setAddingTeacher(false);
+    } catch (err) {
+      setError('Erreur de connexion');
+      setAddingTeacher(false);
+    }
+  };
+
+  const handleDeleteTeacher = async (id) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir retirer cet enseignant ?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/teachers/${id}`, token);
+      fetchTeachers();
+    } catch (err) {
+      setError('Erreur lors de la suppression de l\'enseignant');
     }
   };
 
@@ -124,6 +182,20 @@ function AdminDashboard({ token, onLogout }) {
               <div>
                 <p className="text-dark-500 text-sm">Total Sessions</p>
                 <p className="text-2xl font-bold text-dark-900">{sessions.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md border border-dark-100 p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-primary-500/10 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-dark-500 text-sm">Total Enseignants</p>
+                <p className="text-2xl font-bold text-dark-900">{teachers.length}</p>
               </div>
             </div>
           </div>
@@ -240,6 +312,58 @@ function AdminDashboard({ token, onLogout }) {
                       </svg>
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-xl shadow-md border border-dark-100 p-6 mb-8">
+          <h2 className="text-lg font-bold text-dark-900 mb-4">Gérer les Enseignants</h2>
+          <p className="text-dark-500 text-sm mb-4">
+            Seuls les enseignants ajoutés ici peuvent enregistrer une session vidéo.
+          </p>
+          <form onSubmit={handleAddTeacher} className="flex flex-col sm:flex-row gap-3 mb-6">
+            <input
+              type="text"
+              value={newTeacherName}
+              onChange={(e) => setNewTeacherName(e.target.value)}
+              placeholder="Nom complet de l'enseignant"
+              className="input-field flex-1"
+              required
+            />
+            <button
+              type="submit"
+              disabled={addingTeacher}
+              className="btn-primary whitespace-nowrap disabled:opacity-50"
+            >
+              {addingTeacher ? 'Ajout...' : '+ Ajouter'}
+            </button>
+          </form>
+
+          {teachers.length === 0 ? (
+            <p className="text-dark-400 text-sm">Aucun enseignant ajouté pour le moment</p>
+          ) : (
+            <div className="divide-y divide-dark-100">
+              {teachers.map((teacher) => (
+                <div key={teacher.id} className="py-3 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-primary-500/10 rounded-full flex items-center justify-center">
+                      <span className="text-primary-500 text-sm font-bold">
+                        {teacher.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-dark-900 font-medium">{teacher.name}</span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteTeacher(teacher.id)}
+                    className="p-2 text-dark-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Retirer"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
               ))}
             </div>
