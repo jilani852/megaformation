@@ -25,7 +25,7 @@ function AdminDashboard({ token, onLogout }) {
       }
 
       const data = await response.json();
-      setSessions(data);
+      setSessions(Array.isArray(data) ? data : []);
       setLoading(false);
     } catch (err) {
       setError('Erreur lors du chargement des sessions');
@@ -44,7 +44,7 @@ function AdminDashboard({ token, onLogout }) {
       }
 
       const data = await response.json();
-      setTeachers(data);
+      setTeachers(Array.isArray(data) ? data : []);
     } catch (err) {
       setError('Erreur lors du chargement des enseignants');
     }

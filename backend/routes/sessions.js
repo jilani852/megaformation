@@ -10,6 +10,7 @@ router.get('/sessions', authMiddleware, async (req, res) => {
     const sessions = await db.getSessions();
     res.json(sessions);
   } catch (error) {
+    console.error('GET /sessions error:', error);
     res.status(500).json({ error: 'Failed to fetch sessions' });
   }
 });
@@ -24,6 +25,7 @@ router.post('/sessions', authMiddleware, async (req, res) => {
     const session = await db.createSession(name, code);
     res.status(201).json(session);
   } catch (error) {
+    console.error('POST /sessions error:', error);
     res.status(500).json({ error: 'Failed to create session' });
   }
 });
@@ -97,6 +99,7 @@ router.get('/teachers', authMiddleware, async (req, res) => {
     const teachers = await db.getTeachers();
     res.json(teachers);
   } catch (error) {
+    console.error('GET /teachers error:', error);
     res.status(500).json({ error: 'Failed to fetch teachers' });
   }
 });
@@ -110,6 +113,7 @@ router.post('/teachers', authMiddleware, async (req, res) => {
     const teacher = await db.addTeacher(name.trim());
     res.status(201).json(teacher);
   } catch (error) {
+    console.error('POST /teachers error:', error);
     res.status(500).json({ error: 'Failed to add teacher' });
   }
 });

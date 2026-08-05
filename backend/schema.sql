@@ -35,6 +35,11 @@ ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE session_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
 
+-- Grant access to the app roles (needed when tables are created via raw SQL)
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
 -- Policies: the backend uses the Supabase key server-side only
 -- (it is never exposed to the browser). These policies let the app
 -- read and write the data it needs.
