@@ -5,112 +5,25 @@ function VideoRoom() {
   const { code } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const jitsiContainerRef = useRef(null);
-  const jitsiApiRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamsRef = useRef([]);
   const audioContextRef = useRef(null);
   const timerRef = useRef(null);
   const hadAudioRef = useRef(true);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingError, setRecordingError] = useState('');
   const [showRecordingHint, setShowRecordingHint] = useState(false);
-  const [recordingHadAudio, setRecordingHadAudio] = useState(true);
 
   const userName = location.state?.userName || 'Invité';
   const sessionName = location.state?.sessionName || code;
   const isTeacher = location.state?.isTeacher === true;
 
+  const roomName = `MegaFormation-${code}`;
+  const meetingUrl = `https://meet.jit.si/${roomName}#userInfo.displayName=${encodeURIComponent(JSON.stringify(userName))}`;
+
   useEffect(() => {
-    const loadJitsiScript = () => {
-      return new Promise((resolve, reject) => {
-        if (document.getElementById('jitsi-script')) {
-          resolve();
-          return;
-        }
-        const script = document.createElement('script');
-        script.id = 'jitsi-script';
-        script.src = 'https://meet.jit.si/external_api.js';
-        script.async = true;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-      });
-    };
-
-    const initJitsi = async () => {
-      try {
-        await loadJitsiScript();
-
-        if (jitsiApiRef.current) {
-          jitsiApiRef.current.dispose();
-        }
-
-        const domain = 'meet.jit.si';
-        const roomName = `MegaFormation-${code}`;
-
-        const options = {
-          roomName,
-          width: '100%',
-          height: '100%',
-          parentNode: jitsiContainerRef.current,
-          userInfo: {
-            displayName: userName,
-          },
-          configOverwrite: {
-            startWithAudioMuted: false,
-            startWithVideoMuted: false,
-            prejoinPageEnabled: false,
-            disableDeepLinking: true,
-            defaultLanguage: 'fr',
-            enableNoiseSuppression: true,
-            enableEchoCancellation: true,
-            micDeviceId: null,
-            toolbarButtons: [
-              'microphone', 'camera', 'desktop', 'chat',
-              'raisehand', 'participants', 'tileview',
-              'fullscreen', 'hangup', 'settings',
-            ],
-          },
-          interfaceConfigOverwrite: {
-            filmStripOnly: false,
-            SHOW_JITSI_WATERMARK: false,
-            SHOW_WATERMARK_FOR_GUESTS: false,
-            SHOW_BRAND_WATERMARK: false,
-            DEFAULT_BACKGROUND: '#1a1a1a',
-            TOOLBAR_ALWAYS_VISIBLE: true,
-            DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
-            SHOW_CHROME_EXTENSION_BANNER: false,
-            FILM_STRIP_MAX_HEIGHT: 120,
-            TILE_VIEW_MAX_COLUMNS: 4,
-          },
-        };
-
-        const api = new window.JitsiMeetExternalAPI(domain, options);
-        jitsiApiRef.current = api;
-
-        api.addEventListener('readyToClose', () => {
-          navigate('/');
-        });
-
-        api.addEventListener('participantJoined', (participant) => {
-          console.log('Participant joined:', participant);
-        });
-
-        setLoading(false);
-      } catch (err) {
-        console.error('Jitsi error:', err);
-        setError('Impossible de charger la salle vidéo. Veuillez réessayer.');
-        setLoading(false);
-      }
-    };
-
-    initJitsi();
-
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -123,19 +36,15 @@ function VideoRoom() {
         stream.getTracks().forEach((t) => t.stop());
       });
       streamsRef.current = [];
-      if (jitsiApiRef.current) {
-        jitsiApiRef.current.dispose();
-        jitsiApiRef.current = null;
-      }
     };
-  }, [code, userName, navigate]);
+  }, []);
+
+  const handleOpenMeeting = () => {
+    window.open(meetingUrl, '_blank', 'noopener,noreferrer');
+  };
 
   const handleLeave = () => {
     if (isRecording) stopRecording();
-    if (jitsiApiRef.current) {
-      jitsiApiRef.current.dispose();
-      jitsiApiRef.current = null;
-    }
     navigate('/');
   };
 
@@ -164,7 +73,6 @@ function VideoRoom() {
   const startRecording = async () => {
     setRecordingError('');
     setShowRecordingHint(true);
-    setRecordingHadAudio(true);
     hadAudioRef.current = true;
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -216,7 +124,6 @@ function VideoRoom() {
           }
 
           recordingStream = new MediaStream(finalTracks);
-          setRecordingHadAudio(hasAudio);
           hadAudioRef.current = hasAudio;
 
           screenStream.getVideoTracks()[0].addEventListener('ended', () => {
@@ -245,7 +152,6 @@ function VideoRoom() {
         });
         tracks.push(userStream);
         recordingStream = userStream;
-        setRecordingHadAudio(true);
         hadAudioRef.current = true;
       }
 
@@ -278,7 +184,7 @@ function VideoRoom() {
         cleanupRecordingStreams();
         if (!hadAudioRef.current) {
           setRecordingError(
-            'Vidéo téléchargée mais AUCUN son capturé. Pour enregistrer le son, lors du partage d\'écran, sélectionnez l\'ONGLET de la réunion et cochez "Partager le son de l\'onglet" (ou activez votre micro).'
+            'Vidéo téléchargée mais AUCUN son capturé. Pour enregistrer le son des autres participants, sélectionnez l\'ONGLET de la réunion Jitsi lors du partage d\'écran et cochez "Partager le son de l\'onglet".'
           );
         }
       };
@@ -390,7 +296,7 @@ function VideoRoom() {
       {showRecordingHint && isRecording && (
         <div className="bg-yellow-900/30 border-b border-yellow-700/30 px-4 py-2 text-yellow-300 text-sm text-center">
           <strong>Astuce audio:</strong> Pour enregistrer le son des autres participants,
-          choisissez l'<strong>onglet de la réunion</strong> dans le partage d'écran
+          sélectionnez l'<strong>onglet de la réunion Jitsi</strong> dans le partage d'écran
           et cochez <strong>"Partager le son de l'onglet"</strong>.
         </div>
       )}
@@ -401,39 +307,61 @@ function VideoRoom() {
         </div>
       )}
 
-      <main className="flex-1 relative">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-dark-900 z-10">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary-500 border-t-transparent mx-auto mb-4"></div>
-              <p className="text-white text-lg font-medium">Connexion à la session...</p>
-              <p className="text-dark-400 text-sm mt-2">Patientez pendant que nous préparons votre salle</p>
-            </div>
+      <main className="flex-1 relative flex items-center justify-center p-6">
+        <div className="max-w-xl w-full text-center">
+          <div className="w-20 h-20 bg-primary-500/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
           </div>
-        )}
 
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-dark-900 z-10">
-            <div className="text-center max-w-md mx-auto p-8">
-              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <h3 className="text-white text-xl font-bold mb-2">Erreur</h3>
-              <p className="text-dark-400 mb-6">{error}</p>
-              <button onClick={handleLeave} className="btn-primary">
-                Retour à l'accueil
-              </button>
-            </div>
+          <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
+            {sessionName}
+          </h2>
+          <p className="text-dark-300 mb-8">
+            Cliquez sur le bouton ci-dessous pour ouvrir la réunion vidéo dans un nouvel onglet.
+          </p>
+
+          <button
+            onClick={handleOpenMeeting}
+            className="btn-primary text-lg py-4 px-10 rounded-xl inline-flex items-center justify-center gap-2 mb-8"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Ouvrir la Réunion
+          </button>
+
+          <div className="bg-dark-800 border border-dark-700 rounded-xl p-5 text-left">
+            <h3 className="text-white font-semibold mb-2 text-sm uppercase tracking-wide">
+              Comment ça marche
+            </h3>
+            <ul className="text-dark-300 text-sm space-y-2">
+              <li className="flex items-start gap-2">
+                <span className="text-primary-500 font-bold">1.</span>
+                Ouvrez la réunion dans le nouvel onglet (audio + caméra).
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary-500 font-bold">2.</span>
+                Partagez le lien avec les étudiants pour qu'ils rejoignent la même salle.
+              </li>
+              {isTeacher ? (
+                <li className="flex items-start gap-2">
+                  <span className="text-primary-500 font-bold">3.</span>
+                  Pour enregistrer, revenez sur cette page et cliquez sur{" "}
+                  <strong className="text-white">Enregistrer</strong>. Lors du partage d'écran,
+                  choisissez l'<strong className="text-white">onglet de la réunion</strong> et
+                  cochez <strong className="text-white">"Partager le son de l'onglet"</strong>.
+                </li>
+              ) : (
+                <li className="flex items-start gap-2">
+                  <span className="text-primary-500 font-bold">3.</span>
+                  Rejoignez la salle dans l'onglet ouvert et participez à la session.
+                </li>
+              )}
+            </ul>
           </div>
-        )}
-
-        <div
-          ref={jitsiContainerRef}
-          className="w-full h-full"
-          style={{ display: loading || error ? 'none' : 'block' }}
-        />
+        </div>
       </main>
     </div>
   );
