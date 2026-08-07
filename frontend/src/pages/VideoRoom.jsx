@@ -27,6 +27,7 @@ function VideoRoom() {
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingError, setRecordingError] = useState('');
   const [showRecordingHint, setShowRecordingHint] = useState(false);
+  const [recordingFormat, setRecordingFormat] = useState('');
 
   const userName = location.state?.userName || 'Invité';
   const sessionName = location.state?.sessionName || code;
@@ -179,6 +180,7 @@ function VideoRoom() {
 
       const mimeType = pickRecordingMimeType(hasAudio);
       recordingMimeRef.current = mimeType;
+      setRecordingFormat(mimeType.startsWith('video/mp4') ? 'MP4' : 'WebM');
 
       const recorder = new MediaRecorder(recordingStream, { mimeType });
       mediaRecorderRef.current = recorder;
@@ -270,6 +272,7 @@ function VideoRoom() {
             <span className="flex items-center gap-2 bg-red-600/20 border border-red-500/30 text-red-400 px-3 py-1.5 rounded-lg text-sm font-semibold">
               <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
               REC {formatTime(recordingTime)}
+              {recordingFormat && <span className="text-red-300 font-medium">({recordingFormat})</span>}
             </span>
           )}
 
