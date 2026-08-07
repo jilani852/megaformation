@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
+import fixWebmDuration from 'fix-webm-duration';
 
 function VideoRoom() {
   const { code } = useParams();
@@ -10,6 +11,7 @@ function VideoRoom() {
   const streamsRef = useRef([]);
   const audioContextRef = useRef(null);
   const timerRef = useRef(null);
+  const recordingStartRef = useRef(0);
   const hadAudioRef = useRef(true);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -180,8 +182,15 @@ function VideoRoom() {
         }
       };
 
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      recorder.onstop = async () => {
+        const rawBlob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const duration = Date.now() - recordingStartRef.current;
+        let blob = rawBlob;
+        try {
+          blob = await fixWebmDuration(rawBlob, duration);
+        } catch (err) {
+          console.error('Failed to fix webm duration, using raw blob:', err);
+        }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -200,6 +209,7 @@ function VideoRoom() {
 
       streamsRef.current = tracks;
       recorder.start();
+      recordingStartRef.current = Date.now();
       setIsRecording(true);
       setRecordingTime(0);
       timerRef.current = setInterval(() => {
