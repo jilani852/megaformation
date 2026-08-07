@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 const pickRecordingMimeType = (hasAudio) => {
   const mp4Candidates = hasAudio
@@ -28,6 +30,10 @@ function VideoRoom() {
   const [recordingError, setRecordingError] = useState('');
   const [showRecordingHint, setShowRecordingHint] = useState(false);
   const [recordingFormat, setRecordingFormat] = useState('');
+  const [isConverting, setIsConverting] = useState(false);
+  const [convertProgress, setConvertProgress] = useState(0);
+  const ffmpegRef = useRef(null);
+  const ffmpegCoreUrl = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
 
   const userName = location.state?.userName || 'Invité';
   const sessionName = location.state?.sessionName || code;
@@ -90,6 +96,45 @@ function VideoRoom() {
 
   const handleStopRecording = () => {
     stopRecording();
+  };
+
+  const getFfmpeg = async () => {
+    if (!ffmpegRef.current) {
+      const ffmpeg = new FFmpeg();
+      ffmpeg.on('progress', ({ progress }) => {
+        if (typeof progress === 'number') {
+          setConvertProgress(Math.round(progress * 100));
+        }
+      });
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${ffmpegCoreUrl}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${ffmpegCoreUrl}/ffmpeg-core.wasm`, 'application/wasm'),
+      });
+      ffmpegRef.current = ffmpeg;
+    }
+    return ffmpegRef.current;
+  };
+
+  const convertWebmToMp4 = async (webmBlob) => {
+    const ffmpeg = await getFfmpeg();
+    setConvertProgress(0);
+    await ffmpeg.writeFile('input.webm', await fetchFile(webmBlob));
+    await ffmpeg.exec(['-i', 'input.webm', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', 'output.mp4']);
+    const data = await ffmpeg.readFile('output.mp4');
+    await ffmpeg.deleteFile('input.webm');
+    await ffmpeg.deleteFile('output.mp4');
+    return new Blob([data.buffer], { type: 'video/mp4' });
+  };
+
+  const downloadBlob = (blob, ext) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `megaformation-recording-${Date.now()}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const startRecording = async () => {
@@ -192,20 +237,30 @@ function VideoRoom() {
         }
       };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const mimeType = recordingMimeRef.current;
         const isMp4 = mimeType.startsWith('video/mp4');
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `megaformation-recording-${Date.now()}.${isMp4 ? 'mp4' : 'webm'}`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        let converted = true;
+        try {
+          if (isMp4) {
+            downloadBlob(blob, 'mp4');
+          } else {
+            setIsConverting(true);
+            setConvertProgress(0);
+            const mp4Blob = await convertWebmToMp4(blob);
+            downloadBlob(mp4Blob, 'mp4');
+          }
+        } catch (err) {
+          converted = false;
+          console.error('Conversion failed, falling back to webm:', err);
+          downloadBlob(blob, 'webm');
+          setRecordingError('La conversion en MP4 a échoué, le fichier WebM a été téléchargé à la place.');
+        } finally {
+          setIsConverting(false);
+        }
         cleanupRecordingStreams();
-        if (!hadAudioRef.current) {
+        if (converted && !hadAudioRef.current) {
           setRecordingError(
             'Vidéo téléchargée mais AUCUN son capturé. Pour enregistrer le son des autres participants, sélectionnez l\'ONGLET de la réunion Jitsi lors du partage d\'écran et cochez "Partager le son de l\'onglet".'
           );
@@ -331,6 +386,19 @@ function VideoRoom() {
       {recordingError && (
         <div className="bg-red-900/30 border-b border-red-700/30 px-4 py-2 text-red-300 text-sm text-center">
           {recordingError}
+        </div>
+      )}
+
+      {isConverting && (
+        <div className="bg-blue-900/30 border-b border-blue-700/30 px-4 py-2 text-blue-300 text-sm text-center">
+          <strong>Conversion en MP4 en cours...</strong>
+          {convertProgress > 0 && convertProgress < 100 && (
+            <span className="ml-2 font-mono">{convertProgress}%</span>
+          )}
+          <br />
+          <span className="text-blue-400">
+            Le téléchargement commencera automatiquement quand ce sera fini. Laissez cet onglet ouvert.
+          </span>
         </div>
       )}
 
