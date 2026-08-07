@@ -21,7 +21,16 @@ function VideoRoom() {
   const isTeacher = location.state?.isTeacher === true;
 
   const roomName = `MegaFormation-${code}`;
-  const meetingUrl = `https://meet.jit.si/${roomName}#userInfo.displayName=${encodeURIComponent(JSON.stringify(userName))}&lang=fr`;
+  const toolbarButtons = JSON.stringify([
+    'microphone', 'camera', 'desktop', 'recording', 'localrecording',
+    'chat', 'raisehand', 'participants', 'tileview', 'fullscreen', 'hangup', 'settings',
+  ]);
+  const meetingUrl =
+    `https://meet.jit.si/${roomName}#userInfo.displayName=${encodeURIComponent(JSON.stringify(userName))}` +
+    `&lang=fr` +
+    `&config.localRecording.disable=false` +
+    `&config.recordingService.enabled=false` +
+    `&config.toolbarButtons=${toolbarButtons}`;
 
   useEffect(() => {
     return () => {
@@ -365,13 +374,32 @@ function VideoRoom() {
                 Partagez le lien avec les étudiants pour qu'ils rejoignent la même salle.
               </li>
               {isTeacher ? (
-                <li className="flex items-start gap-2">
-                  <span className="text-primary-500 font-bold">3.</span>
-                  Pour enregistrer, revenez sur cette page et cliquez sur{" "}
-                  <strong className="text-white">Enregistrer</strong>. Lors du partage d'écran,
-                  choisissez l'<strong className="text-white">onglet de la réunion</strong> et
-                  cochez <strong className="text-white">"Partager le son de l'onglet"</strong>.
-                </li>
+                <>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary-500 font-bold">3.</span>
+                    <span>
+                      <strong className="text-white">Méthode Jitsi (conseillée):</strong> dans la
+                      réunion, cliquez sur l'icône <strong className="text-white">menu (⋮)</strong>,
+                      puis <strong className="text-white">Enregistrement</strong>. Choisissez{" "}
+                      <strong className="text-white">"Fichier"</strong> et lancez l'enregistrement.
+                      Pour arrêter, revenez au même menu et cliquez sur{" "}
+                      <strong className="text-white">Arrêter l'enregistrement</strong> — la vidéo se
+                      télécharge automatiquement. <em className="text-dark-400">(Fonctionne sur
+                      Chrome/Edge uniquement)</em>.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary-500 font-bold">4.</span>
+                    <span>
+                      <strong className="text-white">Solution de secours:</strong> notre bouton{" "}
+                      <strong className="text-white">Enregistrer</strong> sur cette page (fonctionne
+                      sur tous les navigateurs). Revenez ici, cliquez sur Enregistrer, et lors du
+                      partage d'écran choisissez l'<strong className="text-white">onglet de la
+                      réunion</strong> en cochant <strong className="text-white">"Partager le son de
+                      l'onglet"</strong>.
+                    </span>
+                  </li>
+                </>
               ) : (
                 <li className="flex items-start gap-2">
                   <span className="text-primary-500 font-bold">3.</span>
