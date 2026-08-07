@@ -21,7 +21,7 @@ function VideoRoom() {
   const isTeacher = location.state?.isTeacher === true;
 
   const roomName = `MegaFormation-${code}`;
-  const meetingUrl = `https://meet.jit.si/${roomName}#userInfo.displayName=${encodeURIComponent(JSON.stringify(userName))}`;
+  const meetingUrl = `https://meet.jit.si/${roomName}#userInfo.displayName=${encodeURIComponent(JSON.stringify(userName))}&lang=fr`;
 
   useEffect(() => {
     return () => {
@@ -298,12 +298,31 @@ function VideoRoom() {
           <strong>Astuce audio:</strong> Pour enregistrer le son des autres participants,
           sélectionnez l'<strong>onglet de la réunion Jitsi</strong> dans le partage d'écran
           et cochez <strong>"Partager le son de l'onglet"</strong>.
+          <br />
+          Pour <strong>arrêter l'enregistrement</strong>, revenez sur cette page et cliquez sur le
+          bouton rouge <strong>"Arrêter"</strong> en bas de l'écran.
         </div>
       )}
 
       {recordingError && (
         <div className="bg-red-900/30 border-b border-red-700/30 px-4 py-2 text-red-300 text-sm text-center">
           {recordingError}
+        </div>
+      )}
+
+      {isRecording && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-3 bg-red-600 text-white px-5 py-3 rounded-full shadow-2xl border-2 border-red-400">
+            <span className="w-3 h-3 bg-white rounded-full animate-pulse"></span>
+            <span className="font-bold">REC</span>
+            <span className="font-mono">{formatTime(recordingTime)}</span>
+            <button
+              onClick={handleStopRecording}
+              className="bg-white text-red-600 font-bold px-5 py-2 rounded-full text-sm hover:bg-red-50 transition-colors"
+            >
+              Arrêter
+            </button>
+          </div>
         </div>
       )}
 
