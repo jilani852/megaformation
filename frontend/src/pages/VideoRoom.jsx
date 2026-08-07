@@ -1,6 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
 
+const pickRecordingMimeType = (hasAudio) => {
+  const mp4Candidates = hasAudio
+    ? ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2,mp4a.67', 'video/mp4']
+    : ['video/mp4;codecs=avc1', 'video/mp4'];
+  const webmCandidates = hasAudio
+    ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    : ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const all = [...mp4Candidates, ...webmCandidates];
+  return all.find((t) => MediaRecorder.isTypeSupported(t)) || 'video/webm';
+};
+
 function VideoRoom() {
   const { code } = useParams();
   const location = useLocation();
@@ -11,6 +22,7 @@ function VideoRoom() {
   const audioContextRef = useRef(null);
   const timerRef = useRef(null);
   const hadAudioRef = useRef(true);
+  const recordingMimeRef = useRef('video/webm');
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingError, setRecordingError] = useState('');
@@ -161,14 +173,12 @@ function VideoRoom() {
         });
         tracks.push(userStream);
         recordingStream = userStream;
+        hasAudio = true;
         hadAudioRef.current = true;
       }
 
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-        ? 'video/webm;codecs=vp8'
-        : 'video/webm';
+      const mimeType = pickRecordingMimeType(hasAudio);
+      recordingMimeRef.current = mimeType;
 
       const recorder = new MediaRecorder(recordingStream, { mimeType });
       mediaRecorderRef.current = recorder;
@@ -181,11 +191,13 @@ function VideoRoom() {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const mimeType = recordingMimeRef.current;
+        const isMp4 = mimeType.startsWith('video/mp4');
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `megaformation-recording-${Date.now()}.webm`;
+        a.download = `megaformation-recording-${Date.now()}.${isMp4 ? 'mp4' : 'webm'}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
