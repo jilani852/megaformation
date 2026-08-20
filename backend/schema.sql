@@ -26,6 +26,14 @@ CREATE TABLE IF NOT EXISTS teachers (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Admin users table (for persistent credential changes)
+CREATE TABLE IF NOT EXISTS admin_users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_code ON sessions(code);
 CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(is_active);
 CREATE INDEX IF NOT EXISTS idx_session_logs_session ON session_logs(session_id);
@@ -34,6 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_session_logs_session ON session_logs(session_id);
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE session_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 
 -- Grant access to the app roles (needed when tables are created via raw SQL)
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
@@ -65,6 +74,13 @@ CREATE POLICY session_logs_select ON session_logs
 -- teachers: full access for the app (admin manages the list, teacher verify reads it)
 DROP POLICY IF EXISTS teachers_all ON teachers;
 CREATE POLICY teachers_all ON teachers
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- admin_users: full access for the app (read/write admin credentials)
+DROP POLICY IF EXISTS admin_users_all ON admin_users;
+CREATE POLICY admin_users_all ON admin_users
   FOR ALL
   USING (true)
   WITH CHECK (true);

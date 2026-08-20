@@ -12,6 +12,16 @@ function AdminDashboard({ token, onLogout }) {
   const [addingTeacher, setAddingTeacher] = useState(false);
   const [error, setError] = useState('');
   const [copiedCode, setCopiedCode] = useState('');
+
+  const [currentUsername, setCurrentUsername] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [credLoading, setCredLoading] = useState(false);
+  const [credError, setCredError] = useState('');
+  const [credSuccess, setCredSuccess] = useState('');
+
   const navigate = useNavigate();
 
   const fetchSessions = async () => {
@@ -137,6 +147,62 @@ function AdminDashboard({ token, onLogout }) {
   const handleLogout = () => {
     onLogout();
     navigate('/admin/login');
+  };
+
+  const handleChangeCredentials = async (e) => {
+    e.preventDefault();
+    setCredError('');
+    setCredSuccess('');
+    setCredLoading(true);
+
+    if (newPassword !== confirmPassword) {
+      setCredError('Les mots de passe ne correspondent pas');
+      setCredLoading(false);
+      return;
+    }
+
+    try {
+      const response = await api.post(
+        '/api/admin/credentials',
+        {
+          currentUsername,
+          currentPassword,
+          newUsername: newUsername.trim(),
+          newPassword,
+        },
+        token
+      );
+
+      if (response.status === 401) {
+        onLogout();
+        navigate('/admin/login');
+        return;
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setCredError(data.error || 'Erreur lors de la modification');
+        setCredLoading(false);
+        return;
+      }
+
+      setCurrentUsername('');
+      setCurrentPassword('');
+      setNewUsername('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setCredSuccess('Identifiants modifiés. Reconnectez-vous...');
+      setCredLoading(false);
+
+      setTimeout(() => {
+        onLogout();
+        navigate('/admin/login');
+      }, 1500);
+    } catch (err) {
+      setCredError('Erreur de connexion');
+      setCredLoading(false);
+    }
   };
 
   return (
@@ -368,6 +434,116 @@ function AdminDashboard({ token, onLogout }) {
               ))}
             </div>
           )}
+        </div>
+
+        <div className="bg-white rounded-xl shadow-md border border-dark-100 p-6 mb-8">
+          <h2 className="text-lg font-bold text-dark-900 mb-2">Changer les Identifiants</h2>
+          <p className="text-dark-500 text-sm mb-4">
+            Modifiez votre nom d'utilisateur et mot de passe. Vous serez déconnecté après la modification.
+          </p>
+
+          <form onSubmit={handleChangeCredentials} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-700 mb-1">
+                  Nom d'utilisateur actuel
+                </label>
+                <input
+                  type="text"
+                  value={currentUsername}
+                  onChange={(e) => setCurrentUsername(e.target.value)}
+                  placeholder="Votre nom d'utilisateur actuel"
+                  className="input-field"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-700 mb-1">
+                  Mot de passe actuel
+                </label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Votre mot de passe actuel"
+                  className="input-field"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-dark-700 mb-1">
+                  Nouveau nom d'utilisateur
+                </label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="Laisser vide pour garder l'actuel"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-dark-700 mb-1">
+                  Nouveau mot de passe
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimum 6 caractères"
+                  className="input-field"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-dark-700 mb-1">
+                Confirmer le nouveau mot de passe
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Retapez le nouveau mot de passe"
+                className="input-field"
+                required
+              />
+            </div>
+
+            {credError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+                {credError}
+              </div>
+            )}
+
+            {credSuccess && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                {credSuccess}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={credLoading}
+              className="btn-primary disabled:opacity-50"
+            >
+              {credLoading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Enregistrement...
+                </span>
+              ) : (
+                'Enregistrer les Changements'
+              )}
+            </button>
+          </form>
         </div>
       </main>
     </div>

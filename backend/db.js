@@ -15,6 +15,7 @@ if (supabaseUrl && supabaseKey && supabaseUrl !== 'your_supabase_url_here') {
 const sessions = [];
 const sessionLogs = [];
 const teachers = [];
+let currentAdmin = null;
 
 const db = {
   supabase,
@@ -156,6 +157,40 @@ const db = {
       return data.length > 0;
     }
     return teachers.some(t => t.name.toLowerCase() === name.toLowerCase());
+  },
+
+  async getAdmin() {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('admin_users')
+        .select('*')
+        .limit(1);
+      if (error) return null;
+      return data.length > 0 ? data[0] : null;
+    }
+    return currentAdmin;
+  },
+
+  async updateAdmin(username, hashedPassword) {
+    if (supabase) {
+      const existing = await this.getAdmin();
+      if (existing) {
+        const { error } = await supabase
+          .from('admin_users')
+          .update({ username, password: hashedPassword })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('admin_users')
+          .insert([{ username, password: hashedPassword }])
+          .select();
+        if (error) throw error;
+        return data[0];
+      }
+    }
+    currentAdmin = { id: 1, username, password: hashedPassword };
+    return currentAdmin;
   }
 };
 

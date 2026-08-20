@@ -47,6 +47,13 @@ function VideoRoom() {
   const meetingUrl =
     `https://meet.jit.si/${roomName}#userInfo.displayName=${encodeURIComponent(JSON.stringify(userName))}` +
     `&lang=fr` +
+    `&interfaceConfig.AUTO_PIN_LATEST_SCREEN_SHARE=remote-only` +
+    `&config.disableTileView=true` +
+    `&config.tileView.disabled=true` +
+    `&config.filmstrip.disableStageFilmstrip=false` +
+    `&config.filmstrip.disableTopPanel=false` +
+    `&config.filmstrip.minParticipantCountForTopPanel=2` +
+    `&config.filmstrip.stageFilmstripParticipants=1` +
     `&config.localRecording.disable=false` +
     `&config.recordingService.enabled=false` +
     `&config.toolbarButtons=${toolbarButtons}`;
@@ -484,10 +491,23 @@ function VideoRoom() {
                   </li>
                 </>
               ) : (
-                <li className="flex items-start gap-2">
-                  <span className="text-primary-500 font-bold">3.</span>
-                  Rejoignez la salle dans l'onglet ouvert et participez à la session.
-                </li>
+                <>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary-500 font-bold">3.</span>
+                    Rejoignez la salle dans l'onglet ouvert et participez à la session.
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary-500 font-bold">4.</span>
+                    <span>
+                      Sur un <strong className="text-white">téléphone</strong>, le partage
+                      d'écran du professeur occupe automatiquement tout l'écran. Tournez le
+                      téléphone en mode <strong className="text-white">paysage</strong> pour un
+                      affichage encore plus large. Si le partage devient petit, appuyez sur la
+                      vignette puis sur l'icône <strong className="text-white">Épingle</strong>{" "}
+                      pour le garder en plein écran.
+                    </span>
+                  </li>
+                </>
               )}
             </ul>
           </div>
