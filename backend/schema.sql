@@ -1,6 +1,5 @@
 -- MegaFormation Database Schema
 -- Run this in the Supabase SQL Editor.
--- The script is safe to re-run.
 
 -- Sessions table
 CREATE TABLE IF NOT EXISTS sessions (
@@ -26,7 +25,7 @@ CREATE TABLE IF NOT EXISTS teachers (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Admin users table (for persistent credential changes)
+-- Admin users table
 CREATE TABLE IF NOT EXISTS admin_users (
   id SERIAL PRIMARY KEY,
   username VARCHAR(100) UNIQUE NOT NULL,
@@ -38,13 +37,13 @@ CREATE INDEX IF NOT EXISTS idx_sessions_code ON sessions(code);
 CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(is_active);
 CREATE INDEX IF NOT EXISTS idx_session_logs_session ON session_logs(session_id);
 
--- Enable Row Level Security on all tables
+-- Enable Row Level Security
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE session_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 
--- Grant access to the app roles (needed when tables are created via raw SQL)
+-- Grants
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
