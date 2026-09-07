@@ -3,6 +3,11 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[build.environment]
+  # The word "admin" appears all over the app source code, so the value of
+  # ADMIN_USERNAME legitimately shows up in the build. Skip scanning that key.
+  SECRETS_SCAN_OMIT_KEYS = "ADMIN_USERNAME"
+
 # Redirect all /api/* calls to the serverless function
 [[redirects]]
   from = "/api/*"
