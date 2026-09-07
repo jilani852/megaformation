@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+# Redirect all /api/* calls to the serverless function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# SPA fallback: serve index.html for client-side routes (must come last)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

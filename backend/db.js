@@ -1,33 +1,38 @@
-const { createClient } = require('@supabase/supabase-js');
+const connectionString = process.env.DATABASE_URL;
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+// Neon free-tier tip: serverless environments must NOT keep a permanent
+// connection open, otherwise the 100 CU-hours/month quota will run out.
+// So instead of a long-lived Pool, we create a short-lived client per
+// operation and close it as soon as the query finishes. This lets Neon
+// scale down to zero (and saves free hours).
+const getClient = async () => {
+  const { Client } = require('pg');
+  const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
+  await client.connect();
+  return client;
+};
 
-let supabase;
-
-if (supabaseUrl && supabaseKey && supabaseUrl !== 'your_supabase_url_here') {
-  supabase = createClient(supabaseUrl, supabaseKey);
-} else {
-  console.log('Supabase not configured. Using in-memory storage.');
-  supabase = null;
-}
-
+// In-memory fallback used only when DATABASE_URL is not configured
+// (e.g. running locally without a .env).
 const sessions = [];
 const sessionLogs = [];
 const teachers = [];
 let currentAdmin = null;
+const useMemory = !connectionString || connectionString === 'your_database_url_here';
 
 const db = {
-  supabase,
-
   async createSession(name, code) {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('sessions')
-        .insert([{ name, code }])
-        .select();
-      if (error) throw error;
-      return data[0];
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        const { rows } = await client.query(
+          'INSERT INTO sessions (name, code) VALUES ($1, $2) RETURNING *',
+          [name, code]
+        );
+        return rows[0];
+      } finally {
+        await client.end();
+      }
     }
     const session = {
       id: sessions.length + 1,
@@ -41,39 +46,45 @@ const db = {
   },
 
   async getSessions() {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        const { rows } = await client.query(
+          'SELECT * FROM sessions ORDER BY created_at DESC'
+        );
+        return rows;
+      } finally {
+        await client.end();
+      }
     }
     return [...sessions].reverse();
   },
 
   async getSessionByCode(code) {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('code', code)
-        .eq('is_active', true)
-        .single();
-      if (error) return null;
-      return data;
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        const { rows } = await client.query(
+          'SELECT * FROM sessions WHERE code = $1 AND is_active = true LIMIT 1',
+          [code]
+        );
+        return rows.length ? rows[0] : null;
+      } finally {
+        await client.end();
+      }
     }
     return sessions.find(s => s.code === code && s.is_active) || null;
   },
 
   async deleteSession(id) {
-    if (supabase) {
-      const { error } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-      return true;
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        await client.query('DELETE FROM sessions WHERE id = $1', [id]);
+        return true;
+      } finally {
+        await client.end();
+      }
     }
     const index = sessions.findIndex(s => s.id === id);
     if (index !== -1) {
@@ -84,11 +95,18 @@ const db = {
   },
 
   async logJoin(sessionId, userName) {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('session_logs')
-        .insert([{ session_id: sessionId, user_name: userName }]);
-      if (error) console.error('Log error:', error);
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        await client.query(
+          'INSERT INTO session_logs (session_id, user_name) VALUES ($1, $2)',
+          [sessionId, userName]
+        );
+      } catch (e) {
+        console.error('Log error:', e);
+      } finally {
+        await client.end();
+      }
       return;
     }
     sessionLogs.push({
@@ -100,13 +118,17 @@ const db = {
   },
 
   async addTeacher(name) {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('teachers')
-        .insert([{ name }])
-        .select();
-      if (error) throw error;
-      return data[0];
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        const { rows } = await client.query(
+          'INSERT INTO teachers (name) VALUES ($1) RETURNING *',
+          [name]
+        );
+        return rows[0];
+      } finally {
+        await client.end();
+      }
     }
     const teacher = {
       id: teachers.length + 1,
@@ -118,25 +140,29 @@ const db = {
   },
 
   async getTeachers() {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('teachers')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data;
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        const { rows } = await client.query(
+          'SELECT * FROM teachers ORDER BY created_at DESC'
+        );
+        return rows;
+      } finally {
+        await client.end();
+      }
     }
     return [...teachers].reverse();
   },
 
   async deleteTeacher(id) {
-    if (supabase) {
-      const { error } = await supabase
-        .from('teachers')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-      return true;
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        await client.query('DELETE FROM teachers WHERE id = $1', [id]);
+        return true;
+      } finally {
+        await client.end();
+      }
     }
     const index = teachers.findIndex(t => t.id === id);
     if (index !== -1) {
@@ -147,46 +173,53 @@ const db = {
   },
 
   async verifyTeacher(name) {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('teachers')
-        .select('*')
-        .ilike('name', name)
-        .limit(1);
-      if (error) return false;
-      return data.length > 0;
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        const { rows } = await client.query(
+          'SELECT * FROM teachers WHERE LOWER(name) = LOWER($1) LIMIT 1',
+          [name]
+        );
+        return rows.length > 0;
+      } finally {
+        await client.end();
+      }
     }
     return teachers.some(t => t.name.toLowerCase() === name.toLowerCase());
   },
 
   async getAdmin() {
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('*')
-        .limit(1);
-      if (error) return null;
-      return data.length > 0 ? data[0] : null;
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        const { rows } = await client.query('SELECT * FROM admin_users LIMIT 1');
+        return rows.length ? rows[0] : null;
+      } finally {
+        await client.end();
+      }
     }
     return currentAdmin;
   },
 
   async updateAdmin(username, hashedPassword) {
-    if (supabase) {
-      const existing = await this.getAdmin();
-      if (existing) {
-        const { error } = await supabase
-          .from('admin_users')
-          .update({ username, password: hashedPassword })
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from('admin_users')
-          .insert([{ username, password: hashedPassword }])
-          .select();
-        if (error) throw error;
-        return data[0];
+    if (!useMemory) {
+      const client = await getClient();
+      try {
+        const existing = await client.query('SELECT * FROM admin_users LIMIT 1');
+        if (existing.rows.length) {
+          await client.query(
+            'UPDATE admin_users SET username = $1, password = $2 WHERE id = $3',
+            [username, hashedPassword, existing.rows[0].id]
+          );
+        } else {
+          await client.query(
+            'INSERT INTO admin_users (username, password) VALUES ($1, $2)',
+            [username, hashedPassword]
+          );
+        }
+        return { username, password: hashedPassword };
+      } finally {
+        await client.end();
       }
     }
     currentAdmin = { id: 1, username, password: hashedPassword };
