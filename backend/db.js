@@ -9,7 +9,58 @@ const getClient = async () => {
   const { Client } = require('pg');
   const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
   await client.connect();
+  await ensureSchema();
   return client;
+};
+
+// Auto-create the tables on the first connection (Neon has no Row Level
+// Security, so no RLS/Grants/Policies are needed here). This keeps the
+// app working even if the SQL was never run manually.
+let schemaReady = null;
+const ensureSchema = () => {
+  if (schemaReady) return schemaReady;
+  schemaReady = (async () => {
+    const { Client } = require('pg');
+    const init = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
+    await init.connect();
+    try {
+      await init.query(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          code VARCHAR(20) UNIQUE NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          is_active BOOLEAN DEFAULT TRUE
+        );
+        CREATE TABLE IF NOT EXISTS session_logs (
+          id SERIAL PRIMARY KEY,
+          session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE,
+          user_name VARCHAR(100),
+          joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS teachers (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100) UNIQUE NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS admin_users (
+          id SERIAL PRIMARY KEY,
+          username VARCHAR(100) UNIQUE NOT NULL,
+          password VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_sessions_code ON sessions(code);
+        CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(is_active);
+        CREATE INDEX IF NOT EXISTS idx_session_logs_session ON session_logs(session_id);
+      `);
+    } finally {
+      await init.end();
+    }
+  })().catch((err) => {
+    schemaReady = null;
+    throw err;
+  });
+  return schemaReady;
 };
 
 // In-memory fallback used only when DATABASE_URL is not configured
