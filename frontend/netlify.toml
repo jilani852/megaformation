@@ -1,7 +1,13 @@
 [build]
-  command = "npm run build"
+  # Install backend deps (needed so esbuild can bundle express/pg/etc. into the
+  # Netlify function), then build the frontend.
+  command = "cd ../backend && npm ci && cd ../frontend && npm run build"
   publish = "dist"
   functions = "netlify/functions"
+
+[functions]
+  # Bundle the function into a single self-contained file with all deps inlined.
+  node_bundler = "esbuild"
 
 [build.environment]
   # The word "admin" appears all over the app source code, so the value of
